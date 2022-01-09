@@ -253,23 +253,23 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 		description="Go to https://nvd.nist.gov/vuln/search -> Advanced \nSearch for the software\nEither copy the cpe String or click 'Search' and copy the link\n\nCopy the cpe/link to a file (cvelist) or use it as input (cpes)\n\nOutput: CVE Table for related vulnerabilities (outfile [default:cves.xlsx])",
 		formatter_class=RawTextHelpFormatter)
-	parser.add_argument('--outfile', metavar='outfile', nargs='?', default="cves.xlsx",
+	parser.add_argument('-o','--outfile', metavar='outfile', nargs='?', default="cves.xlsx",
 						help='File where CVE Tables are written to')
-	parser.add_argument('--cpelist', nargs='*',
+	parser.add_argument('-l','--list', nargs='*',
 						help='File with cpe/links')
-	parser.add_argument('--cpes', nargs='*',
+	parser.add_argument('-p','--products', nargs='*',
 						help='cpe/link')
-	parser.add_argument('--noexploits', action='store_true', default=False,
+	parser.add_argument('-n','--noexploits', action='store_true', default=False,
 						help="Don't lookup exploits")
 	args = parser.parse_args()
 
-	cpe_list = args.cpes
-	if args.cpes:
-		cpe_list = args.cpes
+	cpe_list = args.products
+	if args.products:
+		cpe_list = args.products
 	else:
 		cpe_list = []
-	if(args.cpelist):
-		for file in args.cpelist:
+	if(args.list):
+		for file in args.list:
 			with open(file) as f:
 				lines = f.readlines()
 				for l in lines:
