@@ -312,6 +312,10 @@ if __name__ == '__main__':
 		for file in args.list:
 			with open(file) as f:
 				lines = f.readlines()
+				if file[-4:]==".xml" and lines[1]=='<!DOCTYPE nmaprun>\n': #nmap xml
+					nmap_cpes = re.findall(r"<cpe>(.*)<\/cpe>", "\n".join([l.rstrip() for l in lines]) )
+					products += nmap_cpes
+					continue
 				for l in lines:
 					if l[0] != "#" and len(l) > 1:
 						if (re.findall(r'^(\s+\n+)$', l, re.M)):
@@ -323,7 +327,7 @@ if __name__ == '__main__':
 	product_cpes = []
 	for p in products:
 		cpe = process_input(p)
-		if (cpe != ERROR_STRING):
+		if (cpe != ERROR_STRING and cpe not in product_cpes):
 			product_cpes.append(cpe)
 
 	##### process CPEs and write CVEs to file

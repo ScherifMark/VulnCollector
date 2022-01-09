@@ -20,19 +20,25 @@ VulnCollector.py [-h] [-o [outfile]] [-l [LIST ...]]
 ### Optional Arguments:
 - `-h`, `--help`            show this help message and exit
 - `-o [outfile]`, `--outfile [outfile]` File where CVE Tables are written to
-- `-l [LIST ...]`, `--list [LIST ...]` File with cpe/seach links/keyword
+- `-l [LIST ...]`, `--list [LIST ...]` File with cpe/seach links/keyword or an NMAP XML scan result file
 - `-p [PRODUCTS ...]`, `--products [PRODUCTS ...]` cpe/seach links/keyword
 - `-n`, `--noexploits`      Don't lookup exploits
 
 ### Example Usage
 ```
-VulnCollector.py --p cpe:/:apache:http_server:2.4.43
+VulnCollector.py -p cpe:/:apache:http_server:2.4.43
     Downloading and processing CWE List
     Processing: cpe:/:apache:http_server:2.4.43
     100%|██████████| 21/21 [00:18<00:00,  1.16it/s]
     Your XLXS file has been successfully generated: cves.xlsx
 ```
 
+```
+VulnCollector.py -p cpe:/:apache:http_server:2.4.43 -l list.txt nmap.xml
+```
+
+### Notification
+- `Could not find any CPEs for ...` No matching CPE was found. Try another keyword. However, keep in mind that CPEs are only found if there are any CVEs related to them.
 
 ## Output
 
