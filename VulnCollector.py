@@ -195,29 +195,69 @@ def get_cves_list(cpe):
 	return cves
 
 
-def process_link(input):
+def process_input(line):
 	"""
-	Extract CPE from NIST search URL
-	@param input: NIST search URL
-	@return: CPE string
+	Extract CPE from NIST search URL/given CPE/keywords
+	@param line: NIST search URL/given CPE/keywords
+	@return: CPE object
 	"""
-	if (input[:4] == "http"):
+	if (line[:4] == "http"):
 		try:
-			url = input
+			url = line
 			parsed_url = urlparse(url)
 			params_parsed = parse_qs(parsed_url.query)
-			for p in ["cpe_version", "cpe_product", "cpe_vendor"]:
+			found = False
+			for p in ['cpe_version', 'cpe_product', 'cpe_vendor']:
 				if p in params_parsed:
-					return params_parsed[p][0]
-			print(" - could not be parsed")
-			return ""
+					line = params_parsed[p][0]
+					found = True
+					break
+			if not found:
+				print(" - could not be parsed")
+				return ERROR_STRING
 		except:
 			print(" - could not be parsed")
-			return ""
-	return input
+			return ERROR_STRING
+
+	search_value = "keyword"
+
+	if line[:4] == "cpe:":
+		search_value = "cpeMatchString"
+	else:  # keyword
+		if len(line) < 3 or len(line) > 512:
+			print("keyword: size must be between 3 and 512")
+			return ERROR_STRING
+
+	cpes = []
+	startIndex = 0
+	remaining = 1
+	while remaining > 0:
+		response = requests.get(
+			"https://services.nvd.nist.gov/rest/json/cpes/1.0?resultsPerPage=2000&%s=%s&startIndex=%s" % (search_value,
+																										  quote_plus(
+																											  line),
+																										  str(startIndex)))
+		results = json.loads(response.text)
+		cpes += results['result']['cpes']
+		startIndex += 2000
+		remaining = results['totalResults'] - startIndex
+
+	if (len(cpes) == 0):
+		print("Could not find any CPEs for %s" % (line))
+		return ERROR_STRING
+	elif (len(cpes) == 1):
+		return cpes[0]
+	print("Select CPE for %s:" % (line))
+
+	for c in range(0, len(cpes)):
+		print("[%d] %s \t %s" % (c, cpes[c]['cpe23Uri'], cpes[c]['titles'][0]['title']))
+	select = -1
+	while not (select >= 0 and select < len(cpes)):
+		select = int(input("Select CPE: "))
+	return cpes[select]
 
 
-def get_titel(cpe_string):
+def get_worksheet_titel(cpe_string):
 	"""
 	Generate title based on CPE string
 	@param cpe_string: CPE string
@@ -253,33 +293,41 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 		description="Go to https://nvd.nist.gov/vuln/search -> Advanced \nSearch for the software\nEither copy the cpe String or click 'Search' and copy the link\n\nCopy the cpe/link to a file (cvelist) or use it as input (cpes)\n\nOutput: CVE Table for related vulnerabilities (outfile [default:cves.xlsx])",
 		formatter_class=RawTextHelpFormatter)
-	parser.add_argument('-o','--outfile', metavar='outfile', nargs='?', default="cves.xlsx",
+	parser.add_argument('-o', '--outfile', metavar='outfile', nargs='?', default="cves.xlsx",
 						help='File where CVE Tables are written to')
-	parser.add_argument('-l','--list', nargs='*',
+	parser.add_argument('-l', '--list', nargs='*',
 						help='File with cpe/links')
-	parser.add_argument('-p','--products', nargs='*',
+	parser.add_argument('-p', '--products', nargs='*',
 						help='cpe/link')
-	parser.add_argument('-n','--noexploits', action='store_true', default=False,
+	parser.add_argument('-n', '--noexploits', action='store_true', default=False,
 						help="Don't lookup exploits")
 	args = parser.parse_args()
 
-	cpe_list = args.products
+	products = args.products
 	if args.products:
-		cpe_list = args.products
+		products = args.products
 	else:
-		cpe_list = []
-	if(args.list):
+		products = []
+	if (args.list):
 		for file in args.list:
 			with open(file) as f:
 				lines = f.readlines()
 				for l in lines:
 					if l[0] != "#" and len(l) > 1:
-						l = re.search(r'([^\n\s]*)', l).group(1)
-						cpe_list.append(l)
+						if (re.findall(r'^(\s+\n+)$', l, re.M)):
+							continue
+						l = re.search(r'^\s*(.*[^\s])[\s\n]*$', l, re.M).group(1)
+						products.append(l)
+
+	# convert to cpe
+	product_cpes = []
+	for p in products:
+		cpe = process_input(p)
+		if (cpe != ERROR_STRING):
+			product_cpes.append(cpe)
 
 	##### process CPEs and write CVEs to file
 	filename = args.outfile
-	links = cpe_list
 	search_exploits = not args.noexploits
 	get_cwe_name()
 	workbook = xlsxwriter.Workbook(filename)
@@ -291,17 +339,16 @@ if __name__ == '__main__':
 	wrap_format = workbook.add_format()
 	wrap_format.set_text_wrap()
 
-	for cpe_string in links:
+	for cpe in product_cpes:
 		link_count += 1
-		if cpe_string == "":
-			continue
-		print("Processing: " + cpe_string)
+		cpe_string = cpe['cpe23Uri']
+		title = cpe['titles'][0]['title']
+		print("Processing: " + title)
 		try:
-			cpe_string = process_link(cpe_string)
-			if cpe_string == "":
+			if cpe == "":
 				continue
-			title = get_titel(cpe_string)
-			worksheet = workbook.add_worksheet(str(link_count) + "_" + title)
+
+			worksheet = workbook.add_worksheet(str(link_count) + "_" + get_worksheet_titel(cpe_string))
 			cves = get_cves_list(cpe_string)
 			worksheet.write(0, 0, title, bold)
 			worksheet.write(1, 0, unquote(cpe_string))
