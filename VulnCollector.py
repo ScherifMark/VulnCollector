@@ -251,9 +251,13 @@ def process_input(line):
 
 	for c in range(0, len(cpes)):
 		print("[%d] %s \t %s" % (c, cpes[c]['cpe23Uri'], cpes[c]['titles'][0]['title']))
+	print("[%s] %s" % ("N", "None"))
 	select = -1
 	while not (select >= 0 and select < len(cpes)):
-		select = int(input("Select CPE: "))
+		user_selection = input("Select CPE: ")
+		if user_selection.upper() == "N":
+			return None
+		select = int(user_selection)
 	return cpes[select]
 
 
@@ -344,14 +348,13 @@ if __name__ == '__main__':
 	wrap_format.set_text_wrap()
 
 	for cpe in product_cpes:
+		if cpe == None:
+			continue
 		link_count += 1
 		cpe_string = cpe['cpe23Uri']
 		title = cpe['titles'][0]['title']
 		print("Processing: " + title)
 		try:
-			if cpe == "":
-				continue
-
 			worksheet = workbook.add_worksheet(str(link_count) + "_" + get_worksheet_titel(cpe_string))
 			cves = get_cves_list(cpe_string)
 			worksheet.write(0, 0, title, bold)
