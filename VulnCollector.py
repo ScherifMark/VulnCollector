@@ -326,7 +326,7 @@ if __name__ == '__main__':
 							continue
 						l = re.search(r'^\s*(.*[^\s])[\s\n]*$', l, re.M).group(1)
 						products.append(l)
-
+	products = list(set(products)) # remove duplicates
 	# convert to cpe
 	product_cpes = []
 	for p in products:
