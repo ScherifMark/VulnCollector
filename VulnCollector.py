@@ -317,7 +317,7 @@ if __name__ == '__main__':
 			with open(file) as f:
 				lines = f.readlines()
 				if file[-4:]==".xml" and lines[1]=='<!DOCTYPE nmaprun>\n': #nmap xml
-					nmap_cpes = re.findall(r"<cpe>(.*)<\/cpe>", "\n".join([l.rstrip() for l in lines]) )
+					nmap_cpes = re.findall(r"<cpe>([^<]*)<\/cpe>", "\n".join([l.rstrip() for l in lines]) )
 					products += nmap_cpes
 					continue
 				for l in lines:
