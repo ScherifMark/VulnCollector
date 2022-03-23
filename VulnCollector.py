@@ -6,6 +6,7 @@ import datetime
 import io
 import json
 import re
+import urllib.parse
 import zipfile
 from argparse import RawTextHelpFormatter
 from urllib.parse import urlparse, parse_qs, quote_plus, unquote
@@ -183,8 +184,8 @@ def get_cves_list(cpe):
 	remaining = 1
 	while remaining > 0:
 		response = requests.get(
-			"https://services.nvd.nist.gov/rest/json/cves/1.0?resultsPerPage=2000&cpeMatchString=%s&startIndex=%s" % (
-				cpe, str(startIndex)))
+			"https://services.nvd.nist.gov/rest/json/cves/1.0?resultsPerPage=2000&cpeName=%s&startIndex=%s" % (
+				urllib.parse.quote(cpe), str(startIndex)))
 		results = json.loads(response.text)
 		cves += results['result']['CVE_Items']
 		startIndex += 2000
