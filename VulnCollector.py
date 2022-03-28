@@ -200,7 +200,7 @@ def process_input(line):
 	"""
 	Extract CPE from NIST search URL/given CPE/keywords
 	@param line: NIST search URL/given CPE/keywords
-	@return: CPE object
+	@return: array of CPE objects
 	"""
 	if (line[:4] == "http"):
 		try:
@@ -215,10 +215,10 @@ def process_input(line):
 					break
 			if not found:
 				print(" - could not be parsed")
-				return ERROR_STRING
+				return []
 		except:
 			print(" - could not be parsed")
-			return ERROR_STRING
+			return []
 
 	search_value = "keyword"
 
@@ -227,7 +227,7 @@ def process_input(line):
 	else:  # keyword
 		if len(line) < 3 or len(line) > 512:
 			print("keyword: size must be between 3 and 512")
-			return ERROR_STRING
+			return []
 
 	cpes = []
 	startIndex = 0
@@ -245,30 +245,39 @@ def process_input(line):
 
 	if (len(cpes) == 0):
 		print("Could not find any CPEs for %s" % (line))
-		return ERROR_STRING
+		return []
 	elif (len(cpes) == 1):
-		return cpes[0]
+		return [cpes[0]]
 	print("Select CPE for %s:" % (line))
 
 	for c in range(0, len(cpes)):
 		print("[%d] %s \t %s" % (c, cpes[c]['cpe23Uri'], cpes[c]['titles'][0]['title']))
+	print("[%s] %s" % ("A", "All"))
 	print("[%s] %s" % ("N", "None"))
 	select = -1
-	while not (select >= 0 and select < len(cpes)):
+	selected_cpes = []
+	while not (select != -1):
 		user_selection = input("Select CPE: ")
-		if user_selection.upper() == "N":
-			return None
-		select = int(user_selection)
-	return cpes[select]
+		split_user_selection = user_selection.split()
+		if len(split_user_selection) == 1 and split_user_selection[0].upper() == "N":
+			return []
+		if len(split_user_selection) == 1 and split_user_selection[0].upper() == "A":
+			return cpes
+		for sel in split_user_selection:
+			sel = int(sel)
+			if (sel >= 0 and sel < len(cpes)):
+				selected_cpes.append(cpes[sel])
+				select += 1
+	return selected_cpes
 
 
-def get_worksheet_titel(cpe_string):
+def get_worksheet_titel(prefix,cpe_uri):
 	"""
 	Generate title based on CPE string
-	@param cpe_string: CPE string
+	@param cpe_uri: CPE string
 	@return: title string
 	"""
-	cpe = CPE(unquote(cpe_string))
+	cpe = CPE(unquote(cpe_uri))
 	title = ""
 	if str(cpe.get_vendor()[0]) != "":
 		title += str(cpe.get_vendor()[0])
@@ -276,16 +285,18 @@ def get_worksheet_titel(cpe_string):
 		title += "_" + str(cpe.get_product()[0])
 	if str(cpe.get_version()[0]) != "":
 		title += "_" + str(cpe.get_version()[0])
-	return title
+	if len(title)+len(prefix)>31:
+		title=title[len(title)+len(prefix)-31:]
+	return prefix+title
 
 
-def get_product(cpe_string):
+def get_product(cpe_uri):
 	"""
 	Extract product name from CPE string
-	@param cpe_string: CPE string
+	@param cpe_uri: CPE string
 	@return: product name string
 	"""
-	cpe = CPE(unquote(cpe_string))
+	cpe = CPE(unquote(cpe_uri))
 	title = ""
 	if str(cpe.get_vendor()[0]) != "":
 		title += str(cpe.get_vendor()[0])
@@ -317,8 +328,8 @@ if __name__ == '__main__':
 		for file in args.list:
 			with open(file) as f:
 				lines = f.readlines()
-				if file[-4:]==".xml" and lines[1]=='<!DOCTYPE nmaprun>\n': #nmap xml
-					nmap_cpes = re.findall(r"<cpe>([^<]*)<\/cpe>", "\n".join([l.rstrip() for l in lines]) )
+				if file[-4:] == ".xml" and lines[1] == '<!DOCTYPE nmaprun>\n':  # nmap xml
+					nmap_cpes = re.findall(r"<cpe>([^<]*)<\/cpe>", "\n".join([l.rstrip() for l in lines]))
 					products += nmap_cpes
 					continue
 				for l in lines:
@@ -327,15 +338,15 @@ if __name__ == '__main__':
 							continue
 						l = re.search(r'^\s*(.*[^\s])[\s\n]*$', l, re.M).group(1)
 						products.append(l)
-	products = list(set(products)) # remove duplicates
+	products = list(set(products))  # remove duplicates
 	# convert to cpe
-	product_cpes = []
+	product_cpes = {}
 	for p in products:
-		cpe = process_input(p)
-		if (cpe != ERROR_STRING and cpe not in product_cpes):
-			product_cpes.append(cpe)
-
+		cpes = process_input(p)
+		for cpe in cpes:
+			product_cpes[cpe['cpe23Uri']]=cpe
 	##### process CPEs and write CVEs to file
+
 	filename = args.outfile
 	search_exploits = not args.noexploits
 	get_cwe_name()
@@ -347,22 +358,22 @@ if __name__ == '__main__':
 	date_format = workbook.add_format({'num_format': 'YYYY-MM-DD'})
 	wrap_format = workbook.add_format()
 	wrap_format.set_text_wrap()
-
-	for cpe in product_cpes:
+	product_cpe_uris_sorted=sorted(product_cpes)
+	for cpe_uri in product_cpe_uris_sorted:
+		cpe = product_cpes[cpe_uri]
 		if cpe == None:
 			continue
 		link_count += 1
-		cpe_string = cpe['cpe23Uri']
 		title = cpe['titles'][0]['title']
 		print("Processing: " + title)
 		try:
-			worksheet = workbook.add_worksheet(str(link_count) + "_" + get_worksheet_titel(cpe_string))
-			cves = get_cves_list(cpe_string)
+			worksheet = workbook.add_worksheet(get_worksheet_titel(str(link_count) + "_" , cpe_uri))
+			cves = get_cves_list(cpe_uri)
 			worksheet.write(0, 0, title, bold)
-			worksheet.write(1, 0, unquote(cpe_string))
+			worksheet.write(1, 0, unquote(cpe_uri))
 			worksheet.write_url(2, 0,
 								"https://www.google.com/search?q=" + quote_plus(
-									get_product(cpe_string) + " latest release"),
+									get_product(cpe_uri) + " latest release"),
 								string="Search for latest Version")
 			row = 5
 			col = 0
@@ -400,7 +411,7 @@ if __name__ == '__main__':
 										string=cvssvector)
 				col += 1
 
-				if search_exploits and str(CPE(unquote(cpe_string)).get_product()[0]) != "":
+				if search_exploits and str(CPE(unquote(cpe_uri)).get_product()[0]) != "":
 					exploit_ids = str(get_exploit_db(cve))
 					if exploit_ids != "":
 						if "|" in exploit_ids:
