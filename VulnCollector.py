@@ -18,8 +18,8 @@ from tqdm import tqdm
 
 ERROR_STRING = "-"
 cwe_dict = {'CWE-noinfo': '', 'CWE-Other': ''}
-cwe_xml_path = ""
-
+exploit_id_cache = {}
+exploit_reference_count_cache = {}
 
 def get_exploit_db(cve):
 	"""
@@ -27,20 +27,24 @@ def get_exploit_db(cve):
 	@param cve: sting of CVE name
 	@return: string with expoitDB IDs separated with " | "
 	"""
-	get_header = {
-		'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
-		'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}
 	ids_str = ""
+	cve_id = get_id(cve)
+	if cve_id in exploit_id_cache:
+		return exploit_id_cache[cve_id]
 	try:
-		r = requests.get("https://www.exploit-db.com/search?cve=" + get_id(cve), headers=get_header)
+		get_header = {
+			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
+			'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}
+		r = requests.get("https://www.exploit-db.com/search?cve=" + cve_id, headers=get_header)
 		if r.status_code == 200:
 			exploits = json.loads(r.text)['data']
 			separator = ""
 			for e in exploits:
 				ids_str += separator + str(e['id'])
 				separator = " | "
-		else:
-			ids_str = "Code " + str(r.status_code)
+		exploit_id_cache[cve_id] = ids_str
+		#else:
+		#	ids_str = "Code " + str(r.status_code)
 	except requests.exceptions.RequestException:
 		ids_str = "Connection Error"
 	return ids_str
@@ -181,10 +185,19 @@ def get_complexity(cve):
 		return ERROR_STRING
 
 def get_exploit_reference_count(cve):
+	"""
+	Return the number of references to exploits
+	@param cve: CVE object
+	@return: number of references that include an exploit
+	"""
+	cve_id = get_id(cve)
+	if cve_id in exploit_reference_count_cache:
+		return exploit_reference_count_cache[cve_id]
 	count = 0
 	for reference in cve['cve']['references']['reference_data']:
 		if("Exploit" in reference['tags']):
 			count +=1
+	exploit_reference_count_cache[cve_id] = count
 	return count
 
 def get_cves_list(cpe):
