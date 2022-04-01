@@ -30,16 +30,19 @@ def get_exploit_db(cve):
 	get_header = {
 		'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
 		'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}
-	r = requests.get("https://www.exploit-db.com/search?cve=" + get_id(cve), headers=get_header)
 	ids_str = ""
-	if r.status_code == 200:
-		exploits = json.loads(r.text)['data']
-		separator = ""
-		for e in exploits:
-			ids_str += separator + str(e['id'])
-			separator = " | "
-	else:
-		ids_str = "Code " + str(r.status_code)
+	try:
+		r = requests.get("https://www.exploit-db.com/search?cve=" + get_id(cve), headers=get_header)
+		if r.status_code == 200:
+			exploits = json.loads(r.text)['data']
+			separator = ""
+			for e in exploits:
+				ids_str += separator + str(e['id'])
+				separator = " | "
+		else:
+			ids_str = "Code " + str(r.status_code)
+	except requests.exceptions.RequestException:
+		ids_str = "Connection Error"
 	return ids_str
 
 
@@ -50,14 +53,17 @@ def get_cwe_name():
 	print("Downloading and processing CWE List")
 	get_header = {
 		'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
-	r = requests.get("https://cwe.mitre.org/data/xml/cwec_latest.xml.zip", headers=get_header)
-	zipObj = zipfile.ZipFile(io.BytesIO(r.content))
-	filename = zipObj.namelist()[0]
-	test = zipObj.read(filename).decode("utf-8")
-	xmldoc = minidom.parseString(test)
-	itemlist = xmldoc.getElementsByTagName('Weakness')
-	for cwe in itemlist:
-		cwe_dict[cwe.attributes['ID'].value] = cwe.attributes['Name'].value
+	try:
+		r = requests.get("https://cwe.mitre.org/data/xml/cwec_latest.xml.zip", headers=get_header)
+		zipObj = zipfile.ZipFile(io.BytesIO(r.content))
+		filename = zipObj.namelist()[0]
+		test = zipObj.read(filename).decode("utf-8")
+		xmldoc = minidom.parseString(test)
+		itemlist = xmldoc.getElementsByTagName('Weakness')
+		for cwe in itemlist:
+			cwe_dict[cwe.attributes['ID'].value] = cwe.attributes['Name'].value
+	except requests.exceptions.RequestException:
+		print("Connection error while requesting CWE Names")
 
 
 def get_id(cve):
@@ -130,6 +136,8 @@ def get_description(cve):
 		desc = ""
 		for description in cve['cve']['description']['description_data']:
 			desc += description['value']
+		if get_exploit_reference_count(cve) > 0:
+			desc += "\n+++Exploit References availible!+++"
 		return desc
 	except:
 		return ERROR_STRING
@@ -172,6 +180,12 @@ def get_complexity(cve):
 	except:
 		return ERROR_STRING
 
+def get_exploit_reference_count(cve):
+	count = 0
+	for reference in cve['cve']['references']['reference_data']:
+		if("Exploit" in reference['tags']):
+			count +=1
+	return count
 
 def get_cves_list(cpe):
 	"""
@@ -180,37 +194,40 @@ def get_cves_list(cpe):
 	@return: list off all CVEs that are registered for the CPE/product - CVE objects
 	"""
 	cves = []
-	startIndex = 0
-	remaining = 1
-	while remaining > 0:
-		response = requests.get(
-			"https://services.nvd.nist.gov/rest/json/cves/1.0?resultsPerPage=2000&cpeName=%s&startIndex=%s" % (
-				urllib.parse.quote(cpe), str(startIndex)))
-		results = json.loads(response.text)
-		cves += results['result']['CVE_Items']
-		startIndex += 2000
-		remaining = results['totalResults'] - startIndex
+	try:
+		startIndex = 0
+		remaining = 1
+		while remaining > 0:
+			response = requests.get(
+				"https://services.nvd.nist.gov/rest/json/cves/1.0?resultsPerPage=2000&cpeName=%s&startIndex=%s" % (
+					urllib.parse.quote(cpe), str(startIndex)))
+			results = json.loads(response.text)
+			cves += results['result']['CVE_Items']
+			startIndex += 2000
+			remaining = results['totalResults'] - startIndex
 
-	cves = sorted(cves, key=lambda d: d['impact']['baseMetricV2']['cvssV2']['baseScore'],
-				  reverse=True)
+		cves = sorted(cves, key=lambda d: d['impact']['baseMetricV2']['cvssV2']['baseScore'],
+					  reverse=True)
+	except requests.exceptions.RequestException:
+		print("Connection error while getting vulnerabilites for "+cpe)
 	return cves
 
 
-def process_input(line):
+def process_input(product):
 	"""
 	Extract CPE from NIST search URL/given CPE/keywords
-	@param line: NIST search URL/given CPE/keywords
+	@param product: NIST search URL/given CPE/keywords
 	@return: array of CPE objects
 	"""
-	if (line[:4] == "http"):
+	if (product[:4] == "http"):
 		try:
-			url = line
+			url = product
 			parsed_url = urlparse(url)
 			params_parsed = parse_qs(parsed_url.query)
 			found = False
 			for p in ['cpe_version', 'cpe_product', 'cpe_vendor']:
 				if p in params_parsed:
-					line = params_parsed[p][0]
+					product = params_parsed[p][0]
 					found = True
 					break
 			if not found:
@@ -222,33 +239,35 @@ def process_input(line):
 
 	search_value = "keyword"
 
-	if line[:4] == "cpe:":
+	if product[:4] == "cpe:":
 		search_value = "cpeMatchString"
 	else:  # keyword
-		if len(line) < 3 or len(line) > 512:
+		if len(product) < 3 or len(product) > 512:
 			print("keyword: size must be between 3 and 512")
 			return []
 
 	cpes = []
-	startIndex = 0
-	remaining = 1
-	while remaining > 0:
-		response = requests.get(
-			"https://services.nvd.nist.gov/rest/json/cpes/1.0?resultsPerPage=2000&%s=%s&startIndex=%s" % (search_value,
-																										  quote_plus(
-																											  line),
-																										  str(startIndex)))
-		results = json.loads(response.text)
-		cpes += results['result']['cpes']
-		startIndex += 2000
-		remaining = results['totalResults'] - startIndex
-
+	try:
+		startIndex = 0
+		remaining = 1
+		while remaining > 0:
+			response = requests.get(
+				"https://services.nvd.nist.gov/rest/json/cpes/1.0?resultsPerPage=2000&%s=%s&startIndex=%s" % (search_value,
+																											  quote_plus(
+																												  product),
+																											  str(startIndex)))
+			results = json.loads(response.text)
+			cpes += results['result']['cpes']
+			startIndex += 2000
+			remaining = results['totalResults'] - startIndex
+	except requests.exceptions.RequestException:
+		print("Connection error during CPE lookup for %s" % (product))
 	if (len(cpes) == 0):
-		print("Could not find any CPEs for %s" % (line))
+		print("Could not find any CPEs for %s" % (product))
 		return []
 	elif (len(cpes) == 1):
 		return [cpes[0]]
-	print("Select CPE for %s:" % (line))
+	print("Select CPE for %s:" % (product))
 
 	for c in range(0, len(cpes)):
 		print("[%d] %s \t %s" % (c, cpes[c]['cpe23Uri'], cpes[c]['titles'][0]['title']))
@@ -317,6 +336,8 @@ if __name__ == '__main__':
 						help='cpe/link')
 	parser.add_argument('-n', '--noexploits', action='store_true', default=False,
 						help="Don't lookup exploits")
+	parser.add_argument('-c', '--coloring', action='store_true', default=False,
+						help="Use conditional formatting to highlight rows according to severity (CVSSv3)")
 	args = parser.parse_args()
 
 	products = args.products
@@ -338,6 +359,7 @@ if __name__ == '__main__':
 							continue
 						l = re.search(r'^\s*(.*[^\s])[\s\n]*$', l, re.M).group(1)
 						products.append(l)
+
 	products = list(set(products))  # remove duplicates
 	# convert to cpe
 	product_cpes = {}
@@ -345,8 +367,10 @@ if __name__ == '__main__':
 		cpes = process_input(p)
 		for cpe in cpes:
 			product_cpes[cpe['cpe23Uri']]=cpe
+	if len(product_cpes) == 0:
+		print("No CPEs to process. Quitting...")
+		exit()
 	##### process CPEs and write CVEs to file
-
 	filename = args.outfile
 	search_exploits = not args.noexploits
 	get_cwe_name()
@@ -423,8 +447,9 @@ if __name__ == '__main__':
 				col += 1
 				worksheet.write_string(row, col, str(get_description(cve)), wrap_format)
 				row += 1
-			cells = "A5:" + chr(65 + col) + str(len(cves) + 5)
-			worksheet.add_table(cells, {'columns': [{'header': 'CVE-ID'},
+			all_cells = "A5:" + chr(65 + col) + str(len(cves) + 5)
+			inner_cells = "A6:" + chr(65 + col) + str(len(cves) + 5)
+			worksheet.add_table(all_cells, {'columns': [{'header': 'CVE-ID'},
 													{'header': 'Vulnerability Type'},
 													{'header': 'Publish Date'},
 													{'header': 'Score (2.0)'},
@@ -438,11 +463,39 @@ if __name__ == '__main__':
 													{'header': 'Score (3.1) [Sort]'},
 													]})
 			# Light red fill with dark red text if CVE is disputed
-			format1 = workbook.add_format({'bg_color': '#FFC7CE',
-										   'font_color': '#9C0006'})
-			worksheet.conditional_format(cells, {'type': 'formula',
-												 'criteria': '=ISNUMBER(SEARCH("** DISPUTED **",$J5))',
-												 'format': format1})
+			disputed_format = workbook.add_format({'italic':1})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=ISNUMBER(SEARCH("** DISPUTED **",$J6))',
+													   'format': disputed_format})
+			# Bold type for CVEs with available exploits
+			exploit_format = workbook.add_format({'bold':1})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=ISNUMBER(SEARCH("+++Exploit References availible!+++",$J6))',
+													   'format': exploit_format})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+												 'criteria': '=NOT(ISBLANK($I6))',
+												 'format': exploit_format})
+
+			# Use conditional formatting to color rows according to severity (CVSSv3)
+			if args.coloring:
+				critical_format = workbook.add_format({'bg_color': '#000000',
+													   'font_color': '#FFFFFF'})
+				worksheet.conditional_format(inner_cells, {'type': 'formula',
+														   'criteria': '=AND($G6>=9,$G6<=10)',
+														   'format': critical_format})
+				high_format = workbook.add_format({'bg_color': '#d9534f'})
+				worksheet.conditional_format(inner_cells, {'type': 'formula',
+														   'criteria': '=AND($G6>=7,$G6<9)',
+														   'format': high_format})
+				medium_format = workbook.add_format({'bg_color': '#ec971f'})
+				worksheet.conditional_format(inner_cells, {'type': 'formula',
+														   'criteria': '=AND($G6>=4,$G6<7)',
+														   'format': medium_format})
+				low_format = workbook.add_format({'bg_color': '#f2cc0c'})
+				worksheet.conditional_format(inner_cells, {'type': 'formula',
+														   'criteria': '=AND($G6>0,$G6<4)',
+														   'format': low_format})
+
 			column_width = [15, 18, 13, 10, 15, 12, 10, 37, 13, 250]
 			for i in range(0, len(column_width)):
 				worksheet.set_column(i, i, column_width[i])

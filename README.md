@@ -3,7 +3,7 @@
 ## Usage
 ```
 VulnCollector.py [-h] [-o [outfile]] [-l [LIST ...]]
-                        [-p [PRODUCTS ...]] [-n]
+                        [-p [PRODUCTS ...]] [-n] [-c]
 ```
 
 ### Option 1
@@ -23,6 +23,7 @@ VulnCollector.py [-h] [-o [outfile]] [-l [LIST ...]]
 - `-l [LIST ...]`, `--list [LIST ...]` File with cpe/seach links/keyword or an NMAP XML scan result file
 - `-p [PRODUCTS ...]`, `--products [PRODUCTS ...]` cpe/seach links/keyword
 - `-n`, `--noexploits`      Don't lookup exploits
+- `-c`, `--coloring`      Use conditional formatting to highlight rows according to severity (CVSSv3)
 
 ### Example Usage
 ```
@@ -35,6 +36,19 @@ VulnCollector.py -p cpe:/:apache:http_server:2.4.43
 
 ```
 VulnCollector.py -p cpe:/:apache:http_server:2.4.43 -l list.txt nmap.xml
+```
+
+```
+VulnCollector.py -p "jQuery 2.2.4"
+    Select CPE for jQuery 2.2.4:
+    [0] cpe:2.3:a:jquery:jquery:2.2.4:*:*:*:*:*:*:* 	 jQuery 2.2.4
+    [1] cpe:2.3:a:no-margin-for-error:prettyphoto:2.2.4:*:*:*:*:wordpress:*:* 	 NO-MARGIN-FOR-ERROR prettyPhoto 2.2.4 for WordPress
+    [2] cpe:2.3:a:jquery:jquery:2.2.4:*:*:*:*:node.js:*:* 	 jquery 2.2.4 for Node.js
+    [A] All
+    [N] None
+    Select CPE: 0               # will select the first CPE
+        or
+    Select CPE: 0 2             # will select the first and last CPE
 ```
 
 ### Notification
