@@ -3,7 +3,7 @@
 ## Usage
 ```
 VulnCollector.py [-h] [-o [outfile]] [-l [LIST ...]]
-                        [-p [PRODUCTS ...]] [-n] [-c]
+                        [-p [PRODUCTS ...]] [-n] [--nocharts] [--coloring {OFF,CVSSv2,CVSSv3}]
 ```
 
 ### Option 1
@@ -23,8 +23,8 @@ VulnCollector.py [-h] [-o [outfile]] [-l [LIST ...]]
 - `-l [LIST ...]`, `--list [LIST ...]` File with cpe/seach links/keyword or an NMAP XML scan result file
 - `-p [PRODUCTS ...]`, `--products [PRODUCTS ...]` cpe/seach links/keyword
 - `-n`, `--noexploits`      Don't lookup exploits
-- `-c`, `--coloring`      Use conditional formatting to highlight rows according to severity (CVSSv3)
-
+- `--nocharts`            Don't insert CVSSv2 and CVSSv3 charts
+- `--coloring {OFF,CVSSv2,CVSSv3}` Choose default coloring option
 ### Example Usage
 ```
 VulnCollector.py -p cpe:/:apache:http_server:2.4.43

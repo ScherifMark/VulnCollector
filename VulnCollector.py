@@ -15,11 +15,21 @@ import requests
 import xlsxwriter
 from cpe import CPE
 from tqdm import tqdm
+from enum import Enum
 
 ERROR_STRING = "-"
 cwe_dict = {'CWE-noinfo': '', 'CWE-Other': ''}
 exploit_id_cache = {}
 exploit_reference_count_cache = {}
+TABLE_START_ROW = 7
+
+class Coloring(Enum):
+	coloring_off = 'OFF'
+	coloring_cvssv2 = 'CVSSv2'
+	coloring_cvssv3 = 'CVSSv3'
+
+	def __str__(self):
+		return self.value
 
 def get_exploit_db(cve):
 	"""
@@ -337,6 +347,7 @@ def get_product(cpe_uri):
 	return title
 
 
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 		description="Go to https://nvd.nist.gov/vuln/search -> Advanced \nSearch for the software\nEither copy the cpe String or click 'Search' and copy the link\n\nCopy the cpe/link to a file (cvelist) or use it as input (cpes)\n\nOutput: CVE Table for related vulnerabilities (outfile [default:cves.xlsx])",
@@ -349,8 +360,10 @@ if __name__ == '__main__':
 						help='cpe/link')
 	parser.add_argument('-n', '--noexploits', action='store_true', default=False,
 						help="Don't lookup exploits")
-	parser.add_argument('-c', '--coloring', action='store_true', default=False,
-						help="Use conditional formatting to highlight rows according to severity (CVSSv3)")
+	parser.add_argument('--nocharts', action='store_true', default=False,
+						help="Don't insert CVSSv2 and CVSSv3 charts")
+	parser.add_argument('--coloring', type=Coloring, choices=list(Coloring), default='CVSSv2',
+						help="Choose default coloring option")
 	args = parser.parse_args()
 
 	products = args.products
@@ -386,9 +399,11 @@ if __name__ == '__main__':
 	##### process CPEs and write CVEs to file
 	filename = args.outfile
 	search_exploits = not args.noexploits
+	generate_charts = not args.nocharts
 	get_cwe_name()
 	workbook = xlsxwriter.Workbook(filename)
 	bold = workbook.add_format({'bold': True})
+
 	link_count = 0
 
 	number_format = workbook.add_format({'num_format': '0.0'})
@@ -404,15 +419,17 @@ if __name__ == '__main__':
 		title = cpe['titles'][0]['title']
 		print("Processing: " + title)
 		try:
-			worksheet = workbook.add_worksheet(get_worksheet_titel(str(link_count) + "_" , cpe_uri))
+			worksheet_title = get_worksheet_titel(str(link_count) + "_" , cpe_uri)
+			worksheet = workbook.add_worksheet(worksheet_title)
 			cves = get_cves_list(cpe_uri)
-			worksheet.write(0, 0, title, bold)
-			worksheet.write(1, 0, unquote(cpe_uri))
+			worksheet.merge_range('A1:D1',title, bold)
+			worksheet.merge_range('A2:D2',unquote(cpe_uri))
+			worksheet.merge_range('A3:D3',"")
 			worksheet.write_url(2, 0,
 								"https://www.google.com/search?q=" + quote_plus(
 									get_product(cpe_uri) + " latest release"),
 								string="Search for latest Version")
-			row = 5
+			row = TABLE_START_ROW
 			col = 0
 			if len(cves) == 0:
 				continue
@@ -460,8 +477,9 @@ if __name__ == '__main__':
 				col += 1
 				worksheet.write_string(row, col, str(get_description(cve)), wrap_format)
 				row += 1
-			all_cells = "A5:" + chr(65 + col) + str(len(cves) + 5)
-			inner_cells = "A6:" + chr(65 + col) + str(len(cves) + 5)
+			last_table_row = len(cves) + TABLE_START_ROW
+			all_cells = "A%d:"%(TABLE_START_ROW) + chr(65 + col) + str(last_table_row)
+			inner_cells = "A%d:"%(TABLE_START_ROW+1) + chr(65 + col) + str(last_table_row)
 			worksheet.add_table(all_cells, {'columns': [{'header': 'CVE-ID'},
 													{'header': 'Vulnerability Type'},
 													{'header': 'Publish Date'},
@@ -475,43 +493,116 @@ if __name__ == '__main__':
 													{'header': 'Score (2.0) [Sort]'},
 													{'header': 'Score (3.1) [Sort]'},
 													]})
+
 			# Light red fill with dark red text if CVE is disputed
 			disputed_format = workbook.add_format({'italic':1})
 			worksheet.conditional_format(inner_cells, {'type': 'formula',
-													   'criteria': '=ISNUMBER(SEARCH("** DISPUTED **",$J6))',
+													   'criteria': '=ISNUMBER(SEARCH("** DISPUTED **",$J%d))'%(TABLE_START_ROW+1),
 													   'format': disputed_format})
 			# Bold type for CVEs with available exploits
 			exploit_format = workbook.add_format({'bold':1})
 			worksheet.conditional_format(inner_cells, {'type': 'formula',
-													   'criteria': '=ISNUMBER(SEARCH("+++Exploit References availible!+++",$J6))',
+													   'criteria': '=ISNUMBER(SEARCH("+++Exploit References availible!+++",$J%d))'%(TABLE_START_ROW+1),
 													   'format': exploit_format})
 			worksheet.conditional_format(inner_cells, {'type': 'formula',
-												 'criteria': '=NOT(ISBLANK($I6))',
+												 'criteria': '=NOT(ISBLANK($I%d))'%(TABLE_START_ROW+1),
 												 'format': exploit_format})
 
-			# Use conditional formatting to color rows according to severity (CVSSv3)
-			if args.coloring:
-				critical_format = workbook.add_format({'bg_color': '#000000',
-													   'font_color': '#FFFFFF'})
-				worksheet.conditional_format(inner_cells, {'type': 'formula',
-														   'criteria': '=AND($G6>=9,$G6<=10)',
-														   'format': critical_format})
-				high_format = workbook.add_format({'bg_color': '#d9534f'})
-				worksheet.conditional_format(inner_cells, {'type': 'formula',
-														   'criteria': '=AND($G6>=7,$G6<9)',
-														   'format': high_format})
-				medium_format = workbook.add_format({'bg_color': '#ec971f'})
-				worksheet.conditional_format(inner_cells, {'type': 'formula',
-														   'criteria': '=AND($G6>=4,$G6<7)',
-														   'format': medium_format})
-				low_format = workbook.add_format({'bg_color': '#f2cc0c'})
-				worksheet.conditional_format(inner_cells, {'type': 'formula',
-														   'criteria': '=AND($G6>0,$G6<4)',
-														   'format': low_format})
+			# Use conditional formatting to color rows according to severity
+			worksheet.write('A5', "Coloring")
+			worksheet.data_validation('B5', {'validate': 'list',
+											  'source': [Coloring.coloring_off, Coloring.coloring_cvssv2, Coloring.coloring_cvssv3]})
+			worksheet.write('B5', str(args.coloring))
+			coloring_drop_down_cell = '$B$5'
 
-			column_width = [15, 18, 13, 10, 15, 12, 10, 37, 13, 250]
+			# Critical
+			critical_format = workbook.add_format({'bg_color': '#000000',
+												   'font_color': '#FFFFFF'})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=AND($G%d>=9,$G%d<=10,%s="%s")'%(TABLE_START_ROW+1, TABLE_START_ROW+1, coloring_drop_down_cell, Coloring.coloring_cvssv3),
+													   'format': critical_format})
+			# High
+			high_format = workbook.add_format({'bg_color': '#d9534f'})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=AND($D%d>=7,$D%d<=10,%s="%s")'%(TABLE_START_ROW+1, TABLE_START_ROW+1, coloring_drop_down_cell, Coloring.coloring_cvssv2),
+													   'format': high_format})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=AND($G%d>=7,$G%d<9,%s="%s")'%(TABLE_START_ROW+1, TABLE_START_ROW+1, coloring_drop_down_cell, Coloring.coloring_cvssv3),
+													   'format': high_format})
+			# Medium
+			medium_format = workbook.add_format({'bg_color': '#ec971f'})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=AND($D%d>=4,$D%d<7,%s="%s")'%(TABLE_START_ROW+1, TABLE_START_ROW+1, coloring_drop_down_cell, Coloring.coloring_cvssv2),
+													   'format': medium_format})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=AND($G%d>=4,$G%d<7,%s="%s")'%(TABLE_START_ROW+1, TABLE_START_ROW+1, coloring_drop_down_cell, Coloring.coloring_cvssv3),
+													   'format': medium_format})
+			# Low
+			low_format = workbook.add_format({'bg_color': '#f2cc0c'})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=AND($D%d>=0,$D%d<4,%s="%s")'%(TABLE_START_ROW+1, TABLE_START_ROW+1, coloring_drop_down_cell, Coloring.coloring_cvssv2),
+													   'format': low_format})
+			worksheet.conditional_format(inner_cells, {'type': 'formula',
+													   'criteria': '=AND($G%d>0,$G%d<4,%s="%s")'%(TABLE_START_ROW+1, TABLE_START_ROW+1, coloring_drop_down_cell, Coloring.coloring_cvssv3),
+													   'format': low_format})
+			column_width = [15, 18, 13, 10, 15, 12, 10, 39, 13, 250]
 			for i in range(0, len(column_width)):
 				worksheet.set_column(i, i, column_width[i])
+
+			# Add Charts
+			if generate_charts:
+				cvss2_score_cells = 'D%d:D%d'%(TABLE_START_ROW+1, last_table_row)
+				cvss3_score_cells = 'G%d:G%d'%(TABLE_START_ROW+1, last_table_row)
+				row += 3 # add some space
+				worksheet.write(row, 2, "Critical")
+				worksheet.write_formula(row, 6,'=IF(COUNTIF(%s,">=9")=0,NA(),COUNTIF(%s,">=9"))'%(cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				row += 1
+				worksheet.write(row, 2, "High")
+				worksheet.write_formula(row, 3,'=IF((COUNTIF(%s,">=7"))=0,NA(),COUNTIF(%s,">=7"))'%(cvss2_score_cells, cvss2_score_cells))  # CVSSv2
+				worksheet.write_formula(row, 6,'=IF((COUNTIF(%s,">=7")-COUNTIF(%s,">=9"))=0,NA(),COUNTIF(%s,">=7")-COUNTIF(%s,">=9"))'%(cvss3_score_cells, cvss3_score_cells, cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				row += 1
+				worksheet.write(row, 2, "Medium")
+				worksheet.write_formula(row, 3,'=IF((COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))=0,NA(),COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))'%(cvss2_score_cells, cvss2_score_cells, cvss2_score_cells, cvss2_score_cells))  # CVSSv2
+				worksheet.write_formula(row, 6,'=IF((COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))=0,NA(),COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))'%(cvss3_score_cells, cvss3_score_cells, cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				row += 1
+				worksheet.write(row, 2, "Low")
+				worksheet.write_formula(row, 3,'=IF((COUNTIF(%s,">=0")-COUNTIF(%s,">=4"))=0,NA(),COUNTIF(%s,">0")-COUNTIF(%s,">=4"))'%(cvss2_score_cells, cvss2_score_cells, cvss2_score_cells, cvss2_score_cells))  # CVSSv2
+				worksheet.write_formula(row, 6,'=IF((COUNTIF(%s,">0")-COUNTIF(%s,">=4"))=0,NA(),COUNTIF(%s,">0")-COUNTIF(%s,">=4"))'%(cvss3_score_cells, cvss3_score_cells, cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				row += 1
+
+				chart1 = workbook.add_chart({'type': 'doughnut'})
+				chart1.add_series({
+					'name':       'CVSSv2',
+					'categories': [worksheet_title, last_table_row+3, 2, last_table_row+3+3, 2],
+					'values':     [worksheet_title, last_table_row+3, 3, last_table_row+3+3, 3],
+					'points': [
+						{'fill': {'color': '#000000'}},
+						{'fill': {'color': '#d9534f'}},
+						{'fill': {'color': '#ec971f'}},
+						{'fill': {'color': '#f2cc0c'}},
+					],
+					'data_labels': {'value': True, 'font': {'color': 'white', 'bold':1}, 'legend_key': True},
+				})
+				chart1.set_title({'name': 'CVSSv2'})
+				chart1.set_legend({'position': 'bottom'})
+				worksheet.insert_chart('B%d'%(last_table_row+2), chart1)
+
+				chart2 = workbook.add_chart({'type': 'doughnut'})
+				chart2.add_series({
+					'name':       'CVSSv3',
+					'categories': [worksheet_title, last_table_row+3, 2, last_table_row+3+3, 2],
+					'values':     [worksheet_title, last_table_row+3, 6, last_table_row+3+3, 6],
+					'points': [
+						{'fill': {'color': '#000000'}},
+						{'fill': {'color': '#d9534f'}},
+						{'fill': {'color': '#ec971f'}},
+						{'fill': {'color': '#f2cc0c'}},
+					],
+					'data_labels': {'value': True, 'font': {'color': 'white', 'bold':1}, 'legend_key': True},
+				})
+				chart2.set_title({'name': 'CVSSv3'})
+				chart2.set_legend({'position': 'bottom'})
+				worksheet.insert_chart('G%d'%(last_table_row+2), chart2)
 		except IndexError:
 			print("ERROR")
 
