@@ -490,8 +490,6 @@ if __name__ == '__main__':
 													{'header': 'Vector (3.1)'},
 													{'header': 'ExploitDB IDs'},
 													{'header': 'Description'},
-													{'header': 'Score (2.0) [Sort]'},
-													{'header': 'Score (3.1) [Sort]'},
 													]})
 
 			# Light red fill with dark red text if CVE is disputed
@@ -551,58 +549,71 @@ if __name__ == '__main__':
 
 			# Add Charts
 			if generate_charts:
-				cvss2_score_cells = 'D%d:D%d'%(TABLE_START_ROW+1, last_table_row)
-				cvss3_score_cells = 'G%d:G%d'%(TABLE_START_ROW+1, last_table_row)
-				row += 3 # add some space
-				worksheet.write(row, 2, "Critical")
-				worksheet.write_formula(row, 6,'=IF(COUNTIF(%s,">=9")=0,NA(),COUNTIF(%s,">=9"))'%(cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				cvss2_score_column = 3
+				cvss3_score_column = 6
+				category_column = cvss2_score_column-1
+				gap_from_table = 3
+				count_format = workbook.add_format({'num_format': '#""'})
+				row += gap_from_table # add some space
+				worksheet.write(row, category_column, "Critical")
+				worksheet.write_formula(row, cvss3_score_column,'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=9))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>10))', count_format)  # CVSSv3
 				row += 1
-				worksheet.write(row, 2, "High")
-				worksheet.write_formula(row, 3,'=IF((COUNTIF(%s,">=7"))=0,NA(),COUNTIF(%s,">=7"))'%(cvss2_score_cells, cvss2_score_cells))  # CVSSv2
-				worksheet.write_formula(row, 6,'=IF((COUNTIF(%s,">=7")-COUNTIF(%s,">=9"))=0,NA(),COUNTIF(%s,">=7")-COUNTIF(%s,">=9"))'%(cvss3_score_cells, cvss3_score_cells, cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				worksheet.write(row, category_column, "High")
+				worksheet.write_formula(row, cvss2_score_column,'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=7))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>10))', count_format)  # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=7))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=9))', count_format)  # CVSSv3
 				row += 1
-				worksheet.write(row, 2, "Medium")
-				worksheet.write_formula(row, 3,'=IF((COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))=0,NA(),COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))'%(cvss2_score_cells, cvss2_score_cells, cvss2_score_cells, cvss2_score_cells))  # CVSSv2
-				worksheet.write_formula(row, 6,'=IF((COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))=0,NA(),COUNTIF(%s,">=4")-COUNTIF(%s,">=7"))'%(cvss3_score_cells, cvss3_score_cells, cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				worksheet.write(row, category_column, "Medium")
+				worksheet.write_formula(row, cvss2_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=4))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=7))', count_format)  # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=4))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=7))', count_format)  # CVSSv3
 				row += 1
-				worksheet.write(row, 2, "Low")
-				worksheet.write_formula(row, 3,'=IF((COUNTIF(%s,">=0")-COUNTIF(%s,">=4"))=0,NA(),COUNTIF(%s,">0")-COUNTIF(%s,">=4"))'%(cvss2_score_cells, cvss2_score_cells, cvss2_score_cells, cvss2_score_cells))  # CVSSv2
-				worksheet.write_formula(row, 6,'=IF((COUNTIF(%s,">0")-COUNTIF(%s,">=4"))=0,NA(),COUNTIF(%s,">0")-COUNTIF(%s,">=4"))'%(cvss3_score_cells, cvss3_score_cells, cvss3_score_cells, cvss3_score_cells))  # CVSSv3
+				worksheet.write(row, category_column, "Low")
+				worksheet.write_formula(row, cvss2_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=0))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=4))', count_format) # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>0))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=4))', count_format)  # CVSSv3
 				row += 1
-
+				worksheet.write(row, category_column, "None")
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]=0))', count_format)  # CVSSv3
+				row += 1
+				worksheet.write(row, category_column, "N/A")
+				worksheet.write_formula(row, cvss2_score_column,f'=SUBTOTAL(3,Table1[CVE-ID])-SUM({chr(65+cvss2_score_column)}{row-3}:{chr(65+cvss2_score_column)}{row})', count_format) # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUBTOTAL(3,Table1[CVE-ID])-SUM({chr(65+cvss3_score_column)}{row-4}:{chr(65+cvss3_score_column)}{row})', count_format)  # CVSSv3
+				row += 1
 				chart1 = workbook.add_chart({'type': 'doughnut'})
 				chart1.add_series({
 					'name':       'CVSSv2',
-					'categories': [worksheet_title, last_table_row+3, 2, last_table_row+3+3, 2],
-					'values':     [worksheet_title, last_table_row+3, 3, last_table_row+3+3, 3],
+					'categories': [worksheet_title, last_table_row+gap_from_table, category_column, last_table_row+gap_from_table+5, category_column],
+					'values':     [worksheet_title, last_table_row+gap_from_table, cvss2_score_column, last_table_row+gap_from_table+5, cvss2_score_column],
 					'points': [
-						{'fill': {'color': '#000000'}},
+						{'fill': {'color': '#FFFFFF'}},
 						{'fill': {'color': '#d9534f'}},
 						{'fill': {'color': '#ec971f'}},
 						{'fill': {'color': '#f2cc0c'}},
+						{'fill': {'color': '#FFFFFF'}},
+						{'fill': {'color': '#e0e0e0'}},
 					],
 					'data_labels': {'value': True, 'font': {'color': 'white', 'bold':1}, 'legend_key': True},
 				})
 				chart1.set_title({'name': 'CVSSv2'})
 				chart1.set_legend({'position': 'bottom'})
-				worksheet.insert_chart('B%d'%(last_table_row+2), chart1)
+				worksheet.insert_chart(f'{chr(65+category_column-1)}{last_table_row+gap_from_table-1}', chart1)
 
 				chart2 = workbook.add_chart({'type': 'doughnut'})
 				chart2.add_series({
 					'name':       'CVSSv3',
-					'categories': [worksheet_title, last_table_row+3, 2, last_table_row+3+3, 2],
-					'values':     [worksheet_title, last_table_row+3, 6, last_table_row+3+3, 6],
+					'categories': [worksheet_title, last_table_row+gap_from_table, category_column, last_table_row+gap_from_table+5, category_column],
+					'values':     [worksheet_title, last_table_row+gap_from_table, cvss3_score_column, last_table_row+gap_from_table+5, cvss3_score_column],
 					'points': [
 						{'fill': {'color': '#000000'}},
 						{'fill': {'color': '#d9534f'}},
 						{'fill': {'color': '#ec971f'}},
 						{'fill': {'color': '#f2cc0c'}},
+						{'fill': {'color': '#bcdfeb'}},
+						{'fill': {'color': '#e0e0e0'}},
 					],
 					'data_labels': {'value': True, 'font': {'color': 'white', 'bold':1}, 'legend_key': True},
 				})
 				chart2.set_title({'name': 'CVSSv3'})
 				chart2.set_legend({'position': 'bottom'})
-				worksheet.insert_chart('G%d'%(last_table_row+2), chart2)
+				worksheet.insert_chart(f'{chr(65+cvss3_score_column)}{last_table_row+gap_from_table-1}', chart2)
 		except IndexError:
 			print("ERROR")
 
