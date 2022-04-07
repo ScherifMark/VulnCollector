@@ -286,6 +286,11 @@ def process_input(product):
 	except requests.exceptions.RequestException:
 		print("Connection error during CPE lookup for %s" % (product))
 	if (len(cpes) == 0):
+		if(".js" in product): # js library cpe information sometimes does not contain .js and are therefore not found
+			print("Could not find any CPEs for %s" % (product))
+			product = product.replace(".js","") # remove .js to make search more general
+			print(f"\tTrying {product}")
+			return process_input(product)
 		print("Could not find any CPEs for %s" % (product))
 		return []
 	elif (len(cpes) == 1):
