@@ -59,3 +59,6 @@ VulnCollector.py -p "jQuery 2.2.4"
 |CVE-ID|Vulnerability Type|Publish Date|Score (2.0)|Access|Complexity|Score (3.1)|Vector (3.1)|ExploitDB IDs|Description|
 |---|---|---|---|---|---|---|---|---|---|
 ||||||||||
+
+## Disclaimer
+This product uses the NVD API but is not endorsed or certified by the NVD.
