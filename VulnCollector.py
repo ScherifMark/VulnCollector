@@ -21,6 +21,7 @@ ERROR_STRING = "-"
 cwe_dict = {'CWE-noinfo': '', 'CWE-Other': ''}
 exploit_id_cache = {}
 exploit_reference_count_cache = {}
+API_Key_str = ""
 
 class Coloring(Enum):
 	coloring_off = 'OFF'
@@ -77,7 +78,6 @@ def get_cwe_name():
 			cwe_dict[cwe.attributes['ID'].value] = cwe.attributes['Name'].value
 		itemlist = xmldoc.getElementsByTagName('Category')
 		for cwe in itemlist:
-			print(cwe.attributes['ID'].value)
 			cwe_dict[cwe.attributes['ID'].value] = cwe.attributes['Name'].value
 		itemlist = xmldoc.getElementsByTagName('View')
 		for cwe in itemlist:
@@ -228,8 +228,7 @@ def get_cves_list(cpe):
 		remaining = 1
 		while remaining > 0:
 			response = requests.get(
-				"https://services.nvd.nist.gov/rest/json/cves/1.0?resultsPerPage=2000&cpeName=%s&startIndex=%s" % (
-					urllib.parse.quote(cpe), str(startIndex)))
+				f"https://services.nvd.nist.gov/rest/json/cves/1.0?resultsPerPage=2000&cpeName={urllib.parse.quote(cpe)}&startIndex={str(startIndex)}{API_Key_str}")
 			results = json.loads(response.text)
 			cves += results['result']['CVE_Items']
 			startIndex += 2000
@@ -281,10 +280,7 @@ def process_input(product):
 		remaining = 1
 		while remaining > 0:
 			response = requests.get(
-				"https://services.nvd.nist.gov/rest/json/cpes/1.0?resultsPerPage=2000&%s=%s&startIndex=%s" % (search_value,
-																											  quote_plus(
-																												  product),
-																											  str(startIndex)))
+				f"https://services.nvd.nist.gov/rest/json/cpes/1.0?resultsPerPage=2000&{search_value}={quote_plus(product)}&startIndex={str(startIndex)}{API_Key_str}")
 			if (response.status_code == 200):
 				results = json.loads(response.text)
 				cpes += results['result']['cpes']
@@ -377,6 +373,8 @@ if __name__ == '__main__':
 						help="Don't insert CVSSv2 and CVSSv3 charts")
 	parser.add_argument('--coloring', type=Coloring, choices=list(Coloring), default='CVSSv2',
 						help="Choose default coloring option")
+	parser.add_argument ('--api', nargs='?', default="",
+						help='NVD API Key')
 	args = parser.parse_args()
 
 	products = args.products
@@ -384,6 +382,18 @@ if __name__ == '__main__':
 		products = args.products
 	else:
 		products = []
+	if args.api != "":
+		try:
+			response = requests.get(
+				f"https://services.nvd.nist.gov/rest/json/cves/1.0?apiKey={args.api}")
+			results = json.loads(response.text)
+			if "error" in results:
+				print(results["message"])
+			else:
+				API_Key_str="&apiKey="+args.api
+		except requests.exceptions.RequestException:
+			print("Connection error while checking API Key")
+
 	if (args.list):
 		for file in args.list:
 			with open(file) as f:
