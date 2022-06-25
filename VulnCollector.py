@@ -75,6 +75,13 @@ def get_cwe_name():
 		itemlist = xmldoc.getElementsByTagName('Weakness')
 		for cwe in itemlist:
 			cwe_dict[cwe.attributes['ID'].value] = cwe.attributes['Name'].value
+		itemlist = xmldoc.getElementsByTagName('Category')
+		for cwe in itemlist:
+			print(cwe.attributes['ID'].value)
+			cwe_dict[cwe.attributes['ID'].value] = cwe.attributes['Name'].value
+		itemlist = xmldoc.getElementsByTagName('View')
+		for cwe in itemlist:
+			cwe_dict[cwe.attributes['ID'].value] = cwe.attributes['Name'].value
 	except requests.exceptions.RequestException:
 		print("Connection error while requesting CWE Names")
 
