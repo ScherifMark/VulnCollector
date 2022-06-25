@@ -278,10 +278,11 @@ def process_input(product):
 																											  quote_plus(
 																												  product),
 																											  str(startIndex)))
-			results = json.loads(response.text)
-			cpes += results['result']['cpes']
-			startIndex += 2000
-			remaining = results['totalResults'] - startIndex
+			if (response.status_code == 200):
+				results = json.loads(response.text)
+				cpes += results['result']['cpes']
+				startIndex += 2000
+				remaining = results['totalResults'] - startIndex
 	except requests.exceptions.RequestException:
 		print("Connection error during CPE lookup for %s" % (product))
 	if (len(cpes) == 0):
@@ -422,6 +423,7 @@ if __name__ == '__main__':
 			continue
 		link_count += 1
 		title = cpe['titles'][0]['title']
+		table_title = "Table"+str(link_count)
 		print("Processing: " + title)
 		try:
 			worksheet_title = get_worksheet_titel(str(link_count) + "_" , cpe_uri)
@@ -499,7 +501,7 @@ if __name__ == '__main__':
 													{'header': 'Vector (3.1)'},
 													{'header': 'ExploitDB IDs'},
 													{'header': 'Description'},
-													]})
+													], 'name': table_title})
 
 			# Light red fill with dark red text if CVE is disputed
 			disputed_format = workbook.add_format({'italic':1})
@@ -565,26 +567,26 @@ if __name__ == '__main__':
 				count_format = workbook.add_format({'num_format': '#""'})
 				row += gap_from_table # add some space
 				worksheet.write(row, category_column, "Critical")
-				worksheet.write_formula(row, cvss3_score_column,'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=9))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>10))', count_format)  # CVSSv3
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>=9))-SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>10))', count_format)  # CVSSv3
 				row += 1
 				worksheet.write(row, category_column, "High")
-				worksheet.write_formula(row, cvss2_score_column,'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=7))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>10))', count_format)  # CVSSv2
-				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=7))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=9))', count_format)  # CVSSv3
+				worksheet.write_formula(row, cvss2_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (2.0)],ROW({table_title}[Score (2.0)])-MIN(ROW({table_title}[Score (2.0)])),,1))*({table_title}[Score (2.0)]>=7))-SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (2.0)],ROW({table_title}[Score (2.0)])-MIN(ROW({table_title}[Score (2.0)])),,1))*({table_title}[Score (2.0)]>10))', count_format)  # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>=7))-SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>=9))', count_format)  # CVSSv3
 				row += 1
 				worksheet.write(row, category_column, "Medium")
-				worksheet.write_formula(row, cvss2_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=4))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=7))', count_format)  # CVSSv2
-				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=4))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=7))', count_format)  # CVSSv3
+				worksheet.write_formula(row, cvss2_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (2.0)],ROW({table_title}[Score (2.0)])-MIN(ROW({table_title}[Score (2.0)])),,1))*({table_title}[Score (2.0)]>=4))-SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (2.0)],ROW({table_title}[Score (2.0)])-MIN(ROW({table_title}[Score (2.0)])),,1))*({table_title}[Score (2.0)]>=7))', count_format)  # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>=4))-SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>=7))', count_format)  # CVSSv3
 				row += 1
 				worksheet.write(row, category_column, "Low")
-				worksheet.write_formula(row, cvss2_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=0))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (2.0)],ROW(Table1[Score (2.0)])-MIN(ROW(Table1[Score (2.0)])),,1))*(Table1[Score (2.0)]>=4))', count_format) # CVSSv2
-				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>0))-SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]>=4))', count_format)  # CVSSv3
+				worksheet.write_formula(row, cvss2_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (2.0)],ROW({table_title}[Score (2.0)])-MIN(ROW({table_title}[Score (2.0)])),,1))*({table_title}[Score (2.0)]>=0))-SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (2.0)],ROW({table_title}[Score (2.0)])-MIN(ROW({table_title}[Score (2.0)])),,1))*({table_title}[Score (2.0)]>=4))', count_format) # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>0))-SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]>=4))', count_format)  # CVSSv3
 				row += 1
 				worksheet.write(row, category_column, "None")
-				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET(Table1[Score (3.1)],ROW(Table1[Score (3.1)])-MIN(ROW(Table1[Score (3.1)])),,1))*(Table1[Score (3.1)]=0))', count_format)  # CVSSv3
+				worksheet.write_formula(row, cvss3_score_column,f'=SUMPRODUCT(SUBTOTAL(3,OFFSET({table_title}[Score (3.1)],ROW({table_title}[Score (3.1)])-MIN(ROW({table_title}[Score (3.1)])),,1))*({table_title}[Score (3.1)]=0))', count_format)  # CVSSv3
 				row += 1
 				worksheet.write(row, category_column, "N/A")
-				worksheet.write_formula(row, cvss2_score_column,f'=SUBTOTAL(3,Table1[CVE-ID])-SUM({chr(65+cvss2_score_column)}{row-3}:{chr(65+cvss2_score_column)}{row})', count_format) # CVSSv2
-				worksheet.write_formula(row, cvss3_score_column,f'=SUBTOTAL(3,Table1[CVE-ID])-SUM({chr(65+cvss3_score_column)}{row-4}:{chr(65+cvss3_score_column)}{row})', count_format)  # CVSSv3
+				worksheet.write_formula(row, cvss2_score_column,f'=SUBTOTAL(3,{table_title}[CVE-ID])-SUM({chr(65+cvss2_score_column)}{row-3}:{chr(65+cvss2_score_column)}{row})', count_format) # CVSSv2
+				worksheet.write_formula(row, cvss3_score_column,f'=SUBTOTAL(3,{table_title}[CVE-ID])-SUM({chr(65+cvss3_score_column)}{row-4}:{chr(65+cvss3_score_column)}{row})', count_format)  # CVSSv3
 				row += 1
 				chart1 = workbook.add_chart({'type': 'doughnut'})
 				chart1.add_series({
