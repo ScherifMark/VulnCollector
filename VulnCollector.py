@@ -233,11 +233,17 @@ def get_cves_list(cpe):
 			cves += results['result']['CVE_Items']
 			startIndex += 2000
 			remaining = results['totalResults'] - startIndex
-
-		cves = sorted(cves, key=lambda d: d['impact']['baseMetricV2']['cvssV2']['baseScore'],
-					  reverse=True)
 	except requests.exceptions.RequestException:
 		print("Connection error while getting vulnerabilites for "+cpe)
+
+	try:
+		cves = sorted(cves, key=lambda d: d['impact']['baseMetricV2']['cvssV2']['baseScore'],
+				  reverse=True)
+	except KeyError:
+		try:
+			cves = sorted(cves, key=lambda d: d['impact']['baseMetricV3']['cvssV3']['baseScore'],reverse=True)
+		except KeyError:
+			cves = sorted(cves, key=lambda d: d['cve']['CVE_data_meta']['ID'],reverse=True)
 	return cves
 
 
@@ -476,7 +482,10 @@ if __name__ == '__main__':
 				date_time = datetime.datetime.strptime(str(get_pub_date(cve)), '%Y-%m-%d')
 				worksheet.write_datetime(row, col, date_time, date_format)
 				col += 1
-				worksheet.write_number(row, col, float(str(get_cvss2_score(cve))), number_format)
+				try:
+					worksheet.write_number(row, col, float(str(get_cvss2_score(cve))), number_format)
+				except:
+					worksheet.write(row, col, "")
 				col += 1
 				worksheet.write_string(row, col, str(get_access(cve)).title())
 				col += 1
