@@ -583,7 +583,7 @@ if __name__ == '__main__':
 			worksheet.conditional_format(inner_cells, {'type': 'formula',
 													   'criteria': '=AND($G%d>0,$G%d<4,%s="%s")'%(table_first_row + 1, table_first_row + 1, coloring_drop_down_cell, Coloring.coloring_cvssv3),
 													   'format': low_format})
-			column_width = [15, 18, 13, 10, 15, 12, 10, 39, 13, 250, 40]
+			column_width = [15, 18, 13, 10, 15, 12, 10, 39, 13, 250, 45]
 			for i in range(0, len(column_width)):
 				worksheet.set_column(i, i, column_width[i])
 
