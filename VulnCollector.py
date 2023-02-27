@@ -513,6 +513,8 @@ if __name__ == '__main__':
 												string=exploit_ids)
 				col += 1
 				worksheet.write_string(row, col, str(get_description(cve)), wrap_format)
+				col += 1
+				worksheet.write_url(row, col, "https://nvd.nist.gov/vuln/detail/" + cve_id)
 				row += 1
 			last_table_row = len(cves) + table_first_row
 			all_cells = "A%d:" % (table_first_row) + chr(65 + col) + str(last_table_row)
@@ -527,6 +529,7 @@ if __name__ == '__main__':
 													{'header': 'Vector (3.1)'},
 													{'header': 'ExploitDB IDs'},
 													{'header': 'Description'},
+													{'header': 'NIST Link'},
 													], 'name': table_title})
 
 			# Light red fill with dark red text if CVE is disputed
@@ -580,7 +583,7 @@ if __name__ == '__main__':
 			worksheet.conditional_format(inner_cells, {'type': 'formula',
 													   'criteria': '=AND($G%d>0,$G%d<4,%s="%s")'%(table_first_row + 1, table_first_row + 1, coloring_drop_down_cell, Coloring.coloring_cvssv3),
 													   'format': low_format})
-			column_width = [15, 18, 13, 10, 15, 12, 10, 39, 13, 250]
+			column_width = [15, 18, 13, 10, 15, 12, 10, 39, 13, 250, 40]
 			for i in range(0, len(column_width)):
 				worksheet.set_column(i, i, column_width[i])
 
