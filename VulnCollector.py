@@ -93,7 +93,7 @@ def get_id(cve):
 	@return: string with CVE id
 	"""
 	try:
-		return cve['cve']['CVE_data_meta']['ID']
+		return cve['id']
 	except:
 		return ERROR_STRING
 
@@ -105,7 +105,7 @@ def get_cvss2_score(cve):
 	@return: string with CVE's CVSSv2 score
 	"""
 	try:
-		return cve['impact']['baseMetricV2']['cvssV2']['baseScore']
+		return cve['metrics']['cvssMetricV2'][0]['cvssData']['baseScore']
 	except:
 		return ERROR_STRING
 
@@ -117,7 +117,11 @@ def get_cvss3_score(cve):
 	@return: string with CVE's CVSSv3 score
 	"""
 	try:
-		return cve['impact']['baseMetricV3']['cvssV3']['baseScore']
+		if 'metrics' in cve:
+			if 'cvssMetricV31' in cve['metrics']:
+				return cve['metrics']['cvssMetricV31'][0]['cvssData']['baseScore']
+			elif 'cvssMetricV30' in cve['metrics']:
+				return cve['metrics']['cvssMetricV30'][0]['cvssData']['baseScore']
 	except:
 		return ERROR_STRING
 
@@ -129,7 +133,10 @@ def get_cvss3_vector(cve):
 	@return: string with CVE's CVSSv3 vector
 	"""
 	try:
-		return cve['impact']['baseMetricV3']['cvssV3']["vectorString"]
+		if 'cvssMetricV31' in cve['metrics']:
+			return cve['metrics']['cvssMetricV31'][0]['cvssData']['vectorString']
+		elif 'cvssMetricV30' in cve['metrics']:
+			return cve['metrics']['cvssMetricV30'][0]['cvssData']['vectorString']
 	except:
 		return ERROR_STRING
 
@@ -141,7 +148,7 @@ def get_pub_date(cve):
 	@return: string with CVE's publishing date
 	"""
 	try:
-		return cve['publishedDate'][:10]
+		return cve['published'][:10]
 	except:
 		return ERROR_STRING
 
@@ -154,8 +161,9 @@ def get_description(cve):
 	"""
 	try:
 		desc = ""
-		for description in cve['cve']['description']['description_data']:
-			desc += description['value']
+		for description in cve['descriptions']:
+			if description['lang'] == "en":
+				desc += description['value']
 		if get_exploit_reference_count(cve) > 0:
 			desc += "\n+++Exploit References availible!+++"
 		return desc
@@ -169,7 +177,7 @@ def get_cwe(cve):
 	@param cve: CVE object
 	@return: string with CVE's CWE category
 	"""
-	cwe = cve['cve']['problemtype']['problemtype_data'][0]['description'][0]['value']
+	cwe = cve['weaknesses'][0]['description'][0]['value']
 	try:
 		cwe_desc = cwe + ":" + cwe_dict[cwe[4:]]
 	except:
@@ -184,7 +192,7 @@ def get_access(cve):
 	@return: string with CVE's Access vecor (CVSSv2)
 	"""
 	try:
-		return cve['impact']['baseMetricV2']['cvssV2']['accessVector']
+		return cve['metrics']['cvssMetricV2'][0]['cvssData']['accessVector']
 	except:
 		return ERROR_STRING
 
@@ -196,7 +204,7 @@ def get_complexity(cve):
 	@return: string with CVE's complexity vecor (CVSSv2)
 	"""
 	try:
-		return cve['impact']['baseMetricV2']['cvssV2']['accessComplexity']
+		return cve['metrics']['cvssMetricV2'][0]['cvssData']['accessComplexity']
 	except:
 		return ERROR_STRING
 
@@ -210,8 +218,8 @@ def get_exploit_reference_count(cve):
 	if cve_id in exploit_reference_count_cache:
 		return exploit_reference_count_cache[cve_id]
 	count = 0
-	for reference in cve['cve']['references']['reference_data']:
-		if("Exploit" in reference['tags']):
+	for reference in cve['references']:
+		if 'tags' in reference and ("Exploit" in reference['tags']):
 			count +=1
 	exploit_reference_count_cache[cve_id] = count
 	return count
@@ -228,22 +236,26 @@ def get_cves_list(cpe):
 		remaining = 1
 		while remaining > 0:
 			response = requests.get(
-				f"https://services.nvd.nist.gov/rest/json/cves/1.0?resultsPerPage=2000&cpeName={urllib.parse.quote(cpe)}&startIndex={str(startIndex)}{API_Key_str}")
+				f"https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=2000&cpeName={urllib.parse.quote(cpe)}&startIndex={str(startIndex)}{API_Key_str}&noRejected")
 			results = json.loads(response.text)
-			cves += results['result']['CVE_Items']
+			# TODO: use cve['configurations']['nodes'] to check if this cve is directly related to CPE
+			for cve in results['vulnerabilities']:
+				cves.append(cve['cve'])
 			startIndex += 2000
 			remaining = results['totalResults'] - startIndex
+			if response.status_code != 200:
+				remaining = 0
 	except requests.exceptions.RequestException:
 		print("Connection error while getting vulnerabilites for "+cpe)
 
 	try:
-		cves = sorted(cves, key=lambda d: d['impact']['baseMetricV2']['cvssV2']['baseScore'],
+		cves = sorted(cves, key=lambda d: d['metrics']['cvssMetricV2'][0]['cvssData']['baseScore'],
 				  reverse=True)
 	except KeyError:
 		try:
-			cves = sorted(cves, key=lambda d: d['impact']['baseMetricV3']['cvssV3']['baseScore'],reverse=True)
+			cves = sorted(cves, key=lambda d: get_cvss3_score(d),reverse=True)
 		except KeyError:
-			cves = sorted(cves, key=lambda d: d['cve']['CVE_data_meta']['ID'],reverse=True)
+			cves = sorted(cves, key=lambda d: d['id'],reverse=True)
 	return cves
 
 
@@ -271,9 +283,11 @@ def process_input(product):
 			print(" - could not be parsed")
 			return []
 
-	search_value = "keyword"
+	search_value = "keywordSearch"
 
 	if product[:4] == "cpe:":
+		if product[:6] == "cpe:/:":
+			product = "cpe:2.3:*:"+product[6:]
 		search_value = "cpeMatchString"
 	else:  # keyword
 		if len(product) < 3 or len(product) > 512:
@@ -285,13 +299,17 @@ def process_input(product):
 		startIndex = 0
 		remaining = 1
 		while remaining > 0:
+			url = f"https://services.nvd.nist.gov/rest/json/cpes/2.0?{search_value}={quote_plus(product)}"
 			response = requests.get(
-				f"https://services.nvd.nist.gov/rest/json/cpes/1.0?resultsPerPage=2000&{search_value}={quote_plus(product)}&startIndex={str(startIndex)}{API_Key_str}")
+				url)
 			if (response.status_code == 200):
 				results = json.loads(response.text)
-				cpes += results['result']['cpes']
+				for cpe in results['products']:
+					cpes.append(cpe['cpe'])
 				startIndex += 2000
 				remaining = results['totalResults'] - startIndex
+			else:
+				remaining = 0
 	except requests.exceptions.RequestException:
 		print("Connection error during CPE lookup for %s" % (product))
 	if (len(cpes) == 0):
@@ -306,8 +324,10 @@ def process_input(product):
 		return [cpes[0]]
 	print("Select CPE for %s:" % (product))
 
-	for c in range(0, len(cpes)):
-		print("[%d] %s \t %s" % (c, cpes[c]['cpe23Uri'], cpes[c]['titles'][0]['title']))
+	counter = 0
+	for cpe in cpes:
+		print("[%d] %s \t %s" % (counter, cpe['cpeName'], cpe['titles'][0]['title']))
+		counter += 1
 	print("[%s] %s" % ("A", "All"))
 	print("[%s] %s" % ("N", "None"))
 	select = -1
@@ -390,13 +410,12 @@ if __name__ == '__main__':
 		products = []
 	if args.api != "":
 		try:
-			response = requests.get(
-				f"https://services.nvd.nist.gov/rest/json/cves/1.0?apiKey={args.api}")
-			results = json.loads(response.text)
-			if "error" in results:
-				print(results["message"])
-			else:
-				API_Key_str="&apiKey="+args.api
+			#response = requests.get(f"https://services.nvd.nist.gov/rest/json/cves/2.0?apiKey={args.api}")
+			#results = json.loads(response.text)
+			#if "error" in results:
+			#	print(results["message"])
+			#else:
+			API_Key_str="&apiKey="+args.api
 		except requests.exceptions.RequestException:
 			print("Connection error while checking API Key")
 
@@ -421,7 +440,7 @@ if __name__ == '__main__':
 	for p in products:
 		cpes = process_input(p)
 		for cpe in cpes:
-			product_cpes[cpe['cpe23Uri']]=cpe
+			product_cpes[cpe['cpeName']]=cpe
 	if len(product_cpes) == 0:
 		print("No CPEs to process. Quitting...")
 		exit()
