@@ -122,6 +122,8 @@ def get_cvss3_score(cve):
 				return cve['metrics']['cvssMetricV31'][0]['cvssData']['baseScore']
 			elif 'cvssMetricV30' in cve['metrics']:
 				return cve['metrics']['cvssMetricV30'][0]['cvssData']['baseScore']
+			else:
+				return 0
 	except:
 		return ERROR_STRING
 
@@ -137,6 +139,8 @@ def get_cvss3_vector(cve):
 			return cve['metrics']['cvssMetricV31'][0]['cvssData']['vectorString']
 		elif 'cvssMetricV30' in cve['metrics']:
 			return cve['metrics']['cvssMetricV30'][0]['cvssData']['vectorString']
+		else:
+			return ""
 	except:
 		return ERROR_STRING
 
